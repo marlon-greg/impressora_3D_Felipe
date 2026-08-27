@@ -1,0 +1,777 @@
+// Precifica3D — modelo de dados
+//
+// Convenções:
+//   • dinheiro em BRL (Float)   • peso em gramas   • volume em ml   • tempo em horas
+//   • todo dado de negócio pertence a um Workspace (isolamento entre contas)
+//   • nomes de campo em português, para o vocabulário bater com o do usuário
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ═════════════════════════════════════════════════════════════
+// TENANCY
+// ═════════════════════════════════════════════════════════════
+
+/// Isola os dados de cada conta. Marlon e Felipe compartilham um workspace;
+/// quem se cadastrar de fora ganha o próprio, e nunca enxerga o dos outros.
+model Workspace {
+  id       String   @id @default(cuid())
+  nome     String
+  slug     String   @unique
+  criadoEm DateTime @default(now())
+
+  membros       Membership[]
+  configuracao  Settings?
+  impressoras   Printer[]
+  tarifas       EnergyTariff[]
+  materiais     Material[]
+  movimentacoes StockMovement[]
+  maoDeObra     LaborRate[]
+  projetos      Project[]
+  alertas       Alert[]
+  convites      VerificationToken[]
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  papel    Papel    @default(OPERADOR)
+  criadoEm DateTime @default(now())
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+enum Papel {
+  DONO // criou o workspace; pode excluir e gerenciar membros
+  ADMIN // configura tudo, convida gente
+  OPERADOR // usa no dia a dia, cria projetos, dá baixa no estoque
+  LEITOR // só visualiza
+}
+
+// ═════════════════════════════════════════════════════════════
+// ACESSO E SEGURANÇA
+// ═════════════════════════════════════════════════════════════
+
+model User {
+  id    String @id @default(cuid())
+  email String @unique
+  /// minúsculo e sem pontos/alias — impede cadastrar o mesmo e-mail duas vezes
+  emailNormalizado String @unique
+  nome  String
+
+  /// null enquanto a conta é só um convite: ele define a senha pelo link do e-mail
+  senhaHash          String?
+  senhaAlteradaEm    DateTime?
+  /// senha provisória em uso — obriga a trocar antes de fazer qualquer coisa
+  precisaTrocarSenha Boolean   @default(false)
+
+  emailVerificadoEm DateTime?
+
+  /// bloqueio progressivo contra força bruta
+  tentativasFalhas Int       @default(0)
+  bloqueadoAte     DateTime?
+
+  /// admin da instalação inteira (você), não do workspace
+  superAdmin Boolean @default(false)
+
+  ativo          Boolean   @default(true)
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
+  ultimoAcessoEm DateTime?
+
+  membros   Membership[]
+  sessoes   Session[]
+  tokens    VerificationToken[]
+  auditoria AuditLog[]
+
+  @@index([emailNormalizado])
+}
+
+/// Sessão no banco, não JWT solto.
+/// O cookie leva um token aleatório de 32 bytes; aqui fica só o hash SHA-256.
+/// Banco vazou? Ninguém forja sessão. Precisa expulsar alguém agora?
+/// Apaga a linha e o acesso morre — com JWT isso seria impossível.
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash   String   @unique
+  expiraEm    DateTime
+  criadoEm    DateTime @default(now())
+  ultimoUsoEm DateTime @default(now())
+
+  ip         String?
+  userAgent  String?
+  revogadaEm DateTime?
+
+  @@index([userId])
+  @@index([expiraEm])
+}
+
+/// Token de uso único: confirmar e-mail, resetar senha, aceitar convite.
+model VerificationToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tipo      TipoToken
+  tokenHash String    @unique
+  expiraEm  DateTime
+  usadoEm   DateTime?
+  criadoEm  DateTime  @default(now())
+
+  /// convite: workspace de destino · troca de e-mail: o novo endereço
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  payload     String?
+
+  @@index([userId, tipo])
+  @@index([expiraEm])
+}
+
+enum TipoToken {
+  VERIFICAR_EMAIL
+  RESETAR_SENHA
+  CONVITE
+  TROCAR_EMAIL
+}
+
+/// Limite de tentativas por IP/e-mail. Em serverless não há memória
+/// compartilhada entre invocações, então o contador precisa morar no banco.
+model RateLimit {
+  id           String    @id @default(cuid())
+  chave        String    @unique // "login:192.0.2.1"
+  contador     Int       @default(0)
+  janelaFim    DateTime
+  bloqueadoAte DateTime?
+
+  @@index([janelaFim])
+}
+
+/// Quem fez o quê, quando, de onde.
+model AuditLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  acao      String // LOGIN_OK, LOGIN_FALHA, SENHA_ALTERADA, CONVITE_ENVIADO...
+  detalhe   String?
+  ip        String?
+  userAgent String?
+  criadoEm  DateTime @default(now())
+
+  @@index([userId, criadoEm])
+  @@index([acao, criadoEm])
+}
+
+/// Fila de e-mail: o request responde rápido e o worker entrega,
+/// com retentativa e registro de falha em vez de erro silencioso.
+model EmailQueue {
+  id       String  @id @default(cuid())
+  para     String
+  assunto  String
+  html     String
+  texto    String?
+  template String?
+
+  status     StatusEmail @default(PENDENTE)
+  tentativas Int         @default(0)
+  ultimoErro String?
+  enviadoEm  DateTime?
+  criadoEm   DateTime    @default(now())
+
+  @@index([status, criadoEm])
+}
+
+enum StatusEmail {
+  PENDENTE
+  ENVIADO
+  FALHOU
+}
+
+// ═════════════════════════════════════════════════════════════
+// CONFIGURAÇÃO DO NEGÓCIO
+// ═════════════════════════════════════════════════════════════
+
+model Settings {
+  id          String    @id @default(cuid())
+  workspaceId String    @unique
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  negocioNome String @default("Ateliê 3D")
+
+  /// MARKUP: % em cima do custo · MARGEM_LIQUIDA: % do preço final que é lucro
+  modoMargem      ModoMargem @default(MARKUP)
+  margemPadraoPct Float      @default(60)
+
+  taxaCanalPadraoPct Float @default(0)
+  taxaPagamentoPct   Float @default(0)
+  impostoPct         Float @default(0)
+
+  /// rateado por hora de trabalho humano
+  custoIndiretoMensal Float @default(0)
+  horasProdutivasMes  Float @default(80)
+
+  embalagemPadrao Float @default(0)
+
+  atualizadoEm DateTime @updatedAt
+}
+
+enum ModoMargem {
+  MARKUP
+  MARGEM_LIQUIDA
+}
+
+// ═════════════════════════════════════════════════════════════
+// IMPRESSORAS
+// ═════════════════════════════════════════════════════════════
+
+model Printer {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  nome       String
+  marca      String?
+  modelo     String?
+  tecnologia Tecnologia @default(FDM)
+
+  valorPago        Float
+  vidaUtilHoras    Float @default(6000)
+  horasJaImpressas Float @default(0)
+  manutencaoAnual  Float @default(0)
+  horasUsoAnual    Float @default(1000)
+
+  potenciaWatts Float @default(150)
+
+  volumeX Float?
+  volumeY Float?
+  volumeZ Float?
+  bicoMm  Float? @default(0.4)
+
+  fotoUrl String?
+  ativa   Boolean @default(true)
+  notas   String?
+
+  /// nomes dos campos que eu preenchi por estimativa — a UI destaca pra corrigir
+  camposEstimados String[] @default([])
+
+  criadoEm DateTime  @default(now())
+  projetos Project[]
+
+  @@index([workspaceId])
+}
+
+enum Tecnologia {
+  FDM
+  RESINA
+}
+
+// ═════════════════════════════════════════════════════════════
+// ENERGIA — R$/kWh real, tirado da conta de luz
+// ═════════════════════════════════════════════════════════════
+
+model EnergyTariff {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  referencia    String // "Outubro/2025"
+  valorConta    Float
+  consumoKwh    Float
+  distribuidora String?
+  bandeira      Bandeira @default(VERDE)
+  ativa         Boolean  @default(false)
+  estimado      Boolean  @default(false)
+  criadoEm      DateTime @default(now())
+
+  /// R$/kWh = valorConta ÷ consumoKwh — já embute impostos e bandeira,
+  /// e por isso é bem maior que a tarifa "de tabela" da distribuidora
+  @@index([workspaceId, ativa])
+}
+
+enum Bandeira {
+  VERDE
+  AMARELA
+  VERMELHA_1
+  VERMELHA_2
+}
+
+// ═════════════════════════════════════════════════════════════
+// MATERIAIS E ESTOQUE
+// ═════════════════════════════════════════════════════════════
+
+model Material {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  nome      String
+  categoria CategoriaMaterial
+  marca     String?
+
+  tipoMaterial String? // PETG, PLA, ACRILICA...
+  cor          String?
+  corHex       String?
+
+  unidade          Unidade
+  tamanhoEmbalagem Float // 1000 g · 37 ml · 1 un
+  precoEmbalagem   Float
+
+  /// para item indivisível (pincel, lixa): quantas peças ele rende
+  rendimentoPecas Float?
+
+  /// derivado das movimentações — nunca editado direto
+  estoqueAtual  Float @default(0)
+  estoqueMinimo Float @default(0)
+  fornecedor    String?
+
+  /// específico de filamento
+  diametroMm    Float?
+  densidadeGcm3 Float?
+  comprimentoM  Float?
+  tempBico      Int?
+  tempMesa      Int?
+
+  /// atributos livres por categoria (acabamento, formato do pincel, etc.)
+  atributos Json?
+
+  /// true = preço estimado por mim; a UI pede confirmação antes de confiar no cálculo
+  precoEstimado Boolean @default(false)
+  fotoUrl       String?
+  ativo         Boolean @default(true)
+  arquivadoEm   DateTime?
+  notas         String?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  compras        MaterialPurchase[]
+  movimentacoes  StockMovement[]
+  usosFilamento  ProjectFilament[]
+  usosAcabamento ProjectMaterial[]
+
+  @@index([workspaceId, categoria])
+  @@index([workspaceId, ativo])
+}
+
+enum CategoriaMaterial {
+  FILAMENTO
+  TINTA
+  PRIMER
+  VERNIZ
+  MASSA // pasta de emenda, pasta de modelagem
+  COLA
+  ABRASIVO // lixa
+  PINCEL
+  FERRAGEM // ímã, parafuso, LED, argola
+  EMBALAGEM
+  OUTRO
+}
+
+enum Unidade {
+  G
+  ML
+  UN
+}
+
+/// Histórico de compra — alimenta média móvel e alerta de alta/baixa de preço.
+model MaterialPurchase {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  data             DateTime @default(now())
+  precoEmbalagem   Float
+  tamanhoEmbalagem Float
+  quantidade       Float    @default(1)
+  fornecedor       String?
+  notas            String?
+
+  @@index([materialId, data])
+}
+
+/// Toda variação de estoque passa por aqui. `Material.estoqueAtual` é
+/// atualizado na MESMA transação, então os dois números nunca divergem.
+model StockMovement {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  tipo       TipoMovimento
+  /// sempre positiva; o sinal vem do `tipo`
+  quantidade Float
+  /// estoque depois desta movimentação — deixa o extrato auditável
+  saldoApos  Float
+
+  motivo    String?
+  projectId String?
+  usuarioId String?
+
+  criadoEm DateTime @default(now())
+
+  @@index([workspaceId, criadoEm])
+  @@index([materialId, criadoEm])
+}
+
+enum TipoMovimento {
+  ENTRADA // compra, reposição
+  SAIDA // consumo em projeto, perda
+  AJUSTE // contagem física corrigindo o sistema
+}
+
+// ═════════════════════════════════════════════════════════════
+// MÃO DE OBRA
+// ═════════════════════════════════════════════════════════════
+
+model LaborRate {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  nome       String // Modelagem 3D, Preparo/Fatiamento, Pintura, Montagem
+  valorHora  Float
+  cor        String?
+  padraoPara TipoTrabalho?
+  ativo      Boolean       @default(true)
+
+  entradas ProjectLabor[]
+
+  @@index([workspaceId])
+}
+
+enum TipoTrabalho {
+  MODELAGEM
+  PREPARO
+  POS_PROCESSAMENTO
+  PINTURA
+  MONTAGEM
+  OUTRO
+}
+
+// ═════════════════════════════════════════════════════════════
+// PROJETO / PEÇA
+// ═════════════════════════════════════════════════════════════
+
+model Project {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  slug      String
+  nome      String
+  descricao String?
+  categoria String?
+  status    StatusProjeto @default(RASCUNHO)
+
+  larguraMm      Float?
+  profundidadeMm Float?
+  alturaMm       Float?
+
+  // ── arquivo / modelagem
+  origemArquivo  OrigemArquivo @default(PRONTO)
+  custoArquivo   Float         @default(0)
+  horasModelagem Float         @default(0)
+  fonteArquivo   String?
+
+  // ── impressão
+  printerId      String?
+  printer        Printer? @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  horasImpressao Float    @default(0)
+  numeroPecas    Int      @default(1)
+  horasPreparo   Float    @default(0)
+
+  // ── complexidade e risco
+  precisaSuporte  Boolean @default(false)
+  paredesFinas    Boolean @default(false)
+  pecasMoveis     Boolean @default(false)
+  multiCor        Boolean @default(false)
+  encaixePreciso  Boolean @default(false)
+  impressaoAlta   Boolean @default(false)
+  /// preenchido sobrepõe o cálculo automático de refugo
+  refugoManualPct Float?
+
+  // ── pós-processamento
+  fazLixamento Boolean @default(false)
+  fazPrimer    Boolean @default(false)
+  fazPintura   Boolean @default(false)
+  fazVerniz    Boolean @default(false)
+  fazMontagem  Boolean @default(false)
+
+  // ── comercial (null = herda de Settings)
+  modoMargem       ModoMargem?
+  margemPct        Float?
+  taxaCanalPct     Float?
+  taxaPagamentoPct Float?
+  impostoPct       Float?
+  embalagemCusto   Float       @default(0)
+  freteEmbutido    Float       @default(0)
+
+  precoVendaAtual Float? // por quanto ele vende hoje
+  precoDefinido   Float? // preço que ele adotou depois do cálculo
+
+  notas       String?
+  arquivadoEm DateTime?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  filamentos ProjectFilament[]
+  materiais  ProjectMaterial[]
+  trabalhos  ProjectLabor[]
+  fotos      ProjectPhoto[]
+  snapshots  PricingSnapshot[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, status])
+}
+
+enum StatusProjeto {
+  RASCUNHO
+  PRODUZIDO
+  ANUNCIADO
+  VENDIDO
+  ARQUIVADO
+}
+
+enum OrigemArquivo {
+  PRONTO // baixou pronto
+  MODIFICADO // baixou e alterou
+  DO_ZERO // modelou do zero
+}
+
+model ProjectFilament {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  gramas         Float
+  /// purga de troca de cor, brim e suporte que vira lixo
+  desperdicioPct Float  @default(0)
+  notas          String?
+
+  @@index([projectId])
+}
+
+model ProjectMaterial {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  /// na unidade do material (ml de tinta, g de massa, un de ímã)
+  quantidade Float
+  notas      String?
+
+  @@index([projectId])
+}
+
+model ProjectLabor {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  laborRateId String?
+  laborRate   LaborRate? @relation(fields: [laborRateId], references: [id], onDelete: SetNull)
+
+  descricao         String
+  horas             Float
+  valorHoraOverride Float?
+  /// trabalho feito antes de imprimir não se perde quando a peça falha
+  antesDaImpressao  Boolean @default(false)
+
+  @@index([projectId])
+}
+
+// ═════════════════════════════════════════════════════════════
+// FOTOS
+// ═════════════════════════════════════════════════════════════
+
+model ProjectPhoto {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tipo    TipoFoto @default(VENDA)
+  url     String // URL pública no Supabase Storage
+  path    String // caminho interno, para conseguir apagar depois
+  legenda String?
+  largura Int?
+  altura  Int?
+  bytes   Int?
+  capa    Boolean  @default(false)
+  ordem   Int      @default(0)
+
+  criadoEm DateTime @default(now())
+
+  @@index([projectId, tipo])
+}
+
+enum TipoFoto {
+  FABRICACAO // processo, setup, falhas
+  VENDA // produto final, foto de anúncio
+}
+
+// ═════════════════════════════════════════════════════════════
+// SNAPSHOT DE PRECIFICAÇÃO — congela o cálculo no tempo
+// ═════════════════════════════════════════════════════════════
+
+model PricingSnapshot {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  criadoEm DateTime @default(now())
+
+  custoTotal          Float
+  precoMinimo         Float
+  precoIdeal          Float
+  precoPremium        Float
+  lucroIdeal          Float
+  margemRealPct       Float
+  ganhoPorHoraMaquina Float
+  ganhoPorHoraHumana  Float
+  riscoScore          Int    @default(0)
+
+  /// cálculo completo, para auditar depois mesmo se os preços mudarem
+  detalhamento Json
+  /// dólar e custo médio do kg no momento do cálculo
+  contextoMercado Json?
+
+  @@index([projectId, criadoEm])
+}
+
+// ═════════════════════════════════════════════════════════════
+// MERCADO — sempre com cache.
+// A coleta agendada grava aqui; nenhuma tela chama API externa.
+// ═════════════════════════════════════════════════════════════
+
+model MarketSnapshot {
+  id      String       @id @default(cuid())
+  fonte   FonteMercado
+  chave   String // "USD-BRL", "IPCA", "PETG-MEDIA-KG"
+  valor   Float
+  unidade String?
+  meta    Json?
+
+  coletadoEm DateTime @default(now())
+  expiraEm   DateTime
+  sucesso    Boolean  @default(true)
+  erro       String?
+
+  @@index([fonte, chave, coletadoEm])
+  @@index([chave, coletadoEm])
+}
+
+enum FonteMercado {
+  CAMBIO // AwesomeAPI USD/BRL, EUR/BRL
+  INDICE // Banco Central: IPCA, IGP-M
+  LOJA // lojas 3D brasileiras
+  MARKETPLACE // preços de venda praticados
+  MANUAL // digitado por vocês
+}
+
+model MarketMaterialPrice {
+  id           String  @id @default(cuid())
+  loja         String
+  produto      String
+  tipoMaterial String?
+  marca        String?
+  precoBRL     Float
+  pesoKg       Float   @default(1)
+  precoPorKg   Float
+  url          String?
+  disponivel   Boolean @default(true)
+
+  coletadoEm DateTime @default(now())
+
+  @@index([tipoMaterial, coletadoEm])
+  @@index([loja, coletadoEm])
+}
+
+model MarketListingStat {
+  id        String  @id @default(cuid())
+  termo     String
+  projectId String?
+
+  precoMin     Float
+  precoMedio   Float
+  precoMax     Float
+  precoMediana Float?
+  amostras     Int
+
+  coletadoEm DateTime @default(now())
+
+  @@index([termo, coletadoEm])
+}
+
+/// Registro de cada execução da coleta — para você ver se o robô rodou e o que quebrou.
+model MarketRun {
+  id          String       @id @default(cuid())
+  fonte       FonteMercado
+  coletor     String
+  iniciadoEm  DateTime     @default(now())
+  concluidoEm DateTime?
+  sucesso     Boolean      @default(false)
+  itens       Int          @default(0)
+  mensagem    String?
+
+  @@index([coletor, iniciadoEm])
+}
+
+// ═════════════════════════════════════════════════════════════
+// ALERTAS
+// ═════════════════════════════════════════════════════════════
+
+model Alert {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  tipo      TipoAlerta
+  gravidade Gravidade  @default(INFO)
+  titulo    String
+  mensagem  String
+  refTipo   String? // "material" | "project"
+  refId     String?
+  lidoEm    DateTime?
+  criadoEm  DateTime   @default(now())
+
+  @@index([workspaceId, lidoEm, criadoEm])
+}
+
+enum TipoAlerta {
+  PRECO_INSUMO_SUBIU
+  PRECO_INSUMO_CAIU
+  CAMBIO_VARIOU
+  MARGEM_BAIXA
+  PRECO_DESATUALIZADO
+  ESTOQUE_BAIXO
+  DADO_ESTIMADO
+  COLETA_FALHOU
+}
+
+enum Gravidade {
+  INFO
+  ATENCAO
+  CRITICO
+}
