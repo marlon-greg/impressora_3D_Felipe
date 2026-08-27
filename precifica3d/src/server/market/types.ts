@@ -23,6 +23,8 @@ export interface PrecoInsumo {
   marca?: string;
   precoBRL: number;
   pesoKg: number;
+  /** normalizado para comparar produtos de embalagem diferente */
+  precoPorKg?: number;
   url?: string;
   disponivel?: boolean;
 }
@@ -92,6 +94,12 @@ export function semOutliers(valores: number[]): number[] {
   const q1 = q(0.25);
   const q3 = q(0.75);
   const iqr = q3 - q1;
+
+  // IQR zero acontece quando a maioria dos preços é idêntica (loja com preço
+  // único para várias cores). Aí o filtro descartaria toda a variação legítima
+  // e reportaria faixa "R$ 96,90 – R$ 96,90". Nesse caso não há o que filtrar.
+  if (iqr === 0) return s;
+
   const lo = q1 - 1.5 * iqr;
   const hi = q3 + 1.5 * iqr;
   const filtrado = s.filter((v) => v >= lo && v <= hi);

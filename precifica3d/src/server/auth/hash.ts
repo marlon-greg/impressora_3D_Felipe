@@ -1,7 +1,26 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
+import {
+  randomBytes,
+  scrypt as scryptCb,
+  timingSafeEqual,
+  type ScryptOptions,
+} from "node:crypto";
 
-const scrypt = promisify(scryptCb);
+/**
+ * promisify() perde a sobrecarga que aceita `options`, então envolvemos à mão
+ * para não perder o controle sobre N/r/p — que é justamente o que define o
+ * custo do ataque.
+ */
+const scrypt = (
+  senha: string,
+  salt: Buffer,
+  keylen: number,
+  opcoes: ScryptOptions,
+): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    scryptCb(senha, salt, keylen, opcoes, (erro, chave) =>
+      erro ? reject(erro) : resolve(chave),
+    );
+  });
 
 /**
  * Hash de senha com scrypt (nativo do Node, recomendado pela OWASP).

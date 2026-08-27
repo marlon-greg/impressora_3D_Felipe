@@ -1,5 +1,5 @@
 /** Sanidade do motor de cálculo. Rode com: npx tsx scripts/check-pricing.ts */
-import { precificar, analisarPreco, type EntradaPrecificacao } from "../src/lib/pricing";
+import { precificar, analisarPreco, type EntradaPrecificacao } from "../src/core/pricing/calculator";
 
 const cenario: EntradaPrecificacao = {
   impressora: {
