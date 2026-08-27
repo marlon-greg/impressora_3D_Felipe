@@ -1,26 +1,120 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+  Design system do Precifica3D.
+
+  O Felipe vai usar isto na bancada, muitas vezes no celular e com a mão suja
+  de tinta. Por isso: alvo de toque grande, contraste alto, e dinheiro sempre
+  em fonte tabular para as colunas alinharem na vertical.
+*/
+
+@theme {
+  /* Marca — verde-petróleo: sério sem ser corporativo, e se distingue bem
+     do vermelho de prejuízo e do âmbar de alerta. */
+  --color-marca-50: #f0fdfa;
+  --color-marca-100: #ccfbf1;
+  --color-marca-200: #99f6e4;
+  --color-marca-300: #5eead4;
+  --color-marca-400: #2dd4bf;
+  --color-marca-500: #14b8a6;
+  --color-marca-600: #0d9488;
+  --color-marca-700: #0f766e;
+  --color-marca-800: #115e59;
+  --color-marca-900: #134e4a;
+  --color-marca-950: #042f2e;
+
+  /* Semântica de dinheiro e risco — usadas de forma consistente no app
+     inteiro, nunca por gosto estético. */
+  --color-lucro: #059669;
+  --color-lucro-suave: #d1fae5;
+  --color-prejuizo: #dc2626;
+  --color-prejuizo-suave: #fee2e2;
+  --color-atencao: #d97706;
+  --color-atencao-suave: #fef3c7;
+  --color-estimado: #7c3aed;
+  --color-estimado-suave: #ede9fe;
+
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --fundo: #f8fafc;
+  --superficie: #ffffff;
+  --superficie-2: #f1f5f9;
+  --borda: #e2e8f0;
+  --borda-forte: #cbd5e1;
+  --texto: #0f172a;
+  --texto-suave: #64748b;
+  --texto-fraco: #94a3b8;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --fundo: #0b1220;
+    --superficie: #111a2b;
+    --superficie-2: #1a2438;
+    --borda: #1e293b;
+    --borda-forte: #334155;
+    --texto: #f1f5f9;
+    --texto-suave: #94a3b8;
+    --texto-fraco: #64748b;
   }
 }
 
+@theme inline {
+  --color-fundo: var(--fundo);
+  --color-superficie: var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-borda: var(--borda);
+  --color-borda-forte: var(--borda-forte);
+  --color-texto: var(--texto);
+  --color-texto-suave: var(--texto-suave);
+  --color-texto-fraco: var(--texto-fraco);
+}
+
+* {
+  border-color: var(--borda);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dinheiro em coluna só alinha se os dígitos tiverem largura fixa. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Foco visível sempre — quem navega por teclado precisa saber onde está. */
+:focus-visible {
+  outline: 2px solid var(--color-marca-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* O medidor de força de senha anima a largura; respeitamos quem pediu
+   menos movimento no sistema. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Campo numérico sem as setinhas, que atrapalham no toque */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }
