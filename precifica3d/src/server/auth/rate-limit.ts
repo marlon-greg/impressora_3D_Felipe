@@ -25,6 +25,9 @@ export const REGRAS = {
   resetSenha: { max: 3, janelaS: 60 * 60, bloqueioS: 30 * 60 },
   reenviarEmail: { max: 3, janelaS: 60 * 60, bloqueioS: 15 * 60 },
   trocarSenha: { max: 5, janelaS: 15 * 60, bloqueioS: 5 * 60 },
+  // não é segurança, é boa vizinhança: cada coleta bate em site de terceiro,
+  // e insistir no botão rende bloqueio de IP e nenhum dado
+  coletaManual: { max: 4, janelaS: 30 * 60, bloqueioS: 10 * 60 },
 } as const satisfies Record<string, RegraLimite>;
 
 export type Acao = keyof typeof REGRAS;

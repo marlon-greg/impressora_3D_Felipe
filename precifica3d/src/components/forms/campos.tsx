@@ -78,11 +78,17 @@ export function Campo({
   );
 }
 
+type ExtrasCampo = {
+  erro?: string;
+  dica?: ReactNode;
+  obrigatorio?: boolean;
+};
+
 export function CampoNumero({
   rotulo,
   unidade,
   ...props
-}: { rotulo: string; unidade?: string } & ComponentProps<"input">) {
+}: { rotulo: string; unidade?: string } & ExtrasCampo & ComponentProps<"input">) {
   return (
     <Campo
       rotulo={rotulo}

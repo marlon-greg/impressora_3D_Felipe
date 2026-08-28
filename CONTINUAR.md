@@ -6,145 +6,101 @@
 > Leia CONTINUAR.md e siga de onde paramos.
 > ```
 
-Última atualização: **27/08/2026**
+Última atualização: **28/08/2026**
 
 ---
 
 ## 🔴 PRIMEIRA COISA AO VOLTAR (o banco local morre quando o PC desliga)
-
-O banco de desenvolvimento roda como um processo local. Quando você desliga o
-PC, ele para. Rode, **em dois terminais separados**, dentro de `precifica3d/`:
 
 **Terminal 1 — deixa aberto, é o banco:**
 ```bash
 cd precifica3d
 npm run db:dev
 ```
-Ele imprime uma `DATABASE_URL`. **Se a porta mudar**, cole a nova no arquivo
+Ele imprime uma `DATABASE_URL`. **Se a porta mudar**, cole a nova no
 `precifica3d/.env` (linhas `DATABASE_URL` e `SHADOW_DATABASE_URL`).
 
-**Terminal 2 — recria o esquema e os dados:**
+**Terminal 2 — o app:**
 ```bash
 cd precifica3d
-npm run db:migrate      # aplica as tabelas
-npm run db:seed         # recria materiais + usuários
+npm run dev            # http://localhost:3000
 ```
 
-⚠️ **O seed imprime SENHAS NOVAS a cada banco novo.** Anote as duas que
-aparecerem — as anteriores não valem mais.
+Se o banco estiver vazio, recrie o esquema e os dados:
+```bash
+npm run db:migrate
+npm run db:seed        # ⚠️ imprime SENHAS NOVAS — anote as duas
+```
+
+⚠️ **O `npm run dev` não recarrega sozinho quando você salva.** O projeto está
+num drive do Windows visto de dentro do WSL, e ali o Linux não recebe aviso de
+arquivo alterado. Depois de editar, `Ctrl+C` e suba de novo. Mover o repositório
+para dentro do WSL (`~/projetos/`) resolve de vez.
 
 ---
 
-## ✅ O que já está pronto e testado
+## ✅ O aplicativo está completo e funcionando
 
-### Banco de dados — completo
-Schema Prisma com 25 tabelas, migration aplicada. Isolamento por **Workspace**:
-você e o Felipe dividem o mesmo; quem se cadastrar de fora ganha um próprio e
-não enxerga os dados de vocês.
+Todas as 10 etapas do plano original foram entregues. `npm run typecheck`,
+`npm test` (70 testes) e `next build` (26 rotas) passam.
 
-### Autenticação — completa no servidor, faltam telas
-- Hash de senha com **scrypt** nativo (parâmetros versionados no registro)
-- Sessão no banco: cookie httpOnly + secure + sameSite=lax, só o hash SHA-256 é guardado
-- Senha forte: mínimo 10 caracteres, 3 classes, sem sequência, sem conter o nome
-- **Checagem contra vazamentos reais** via HaveIBeenPwned (k-anonymity — a senha nunca sai do servidor). Testado: `password123` aparece em 2.266.543 vazamentos
-- Rate limit no banco com bloqueio progressivo
-- Resposta neutra no cadastro e no "esqueci a senha" (não dá pra descobrir quem tem conta)
-- Trilha de auditoria + fila de e-mail com retentativa
-- Fluxos prontos: cadastrar, entrar, verificar e-mail, esqueci a senha, definir senha por link, trocar senha, convidar
+### Telas
 
-### Motor de precificação — completo e testado (`npm run check:pricing`)
-Calcula: filamento (com desperdício) · energia (R$/kWh real da conta) ·
-depreciação · manutenção · acabamento · arquivo/licença · mão de obra ·
-custo indireto · embalagem · **reserva de refugo por score de risco**.
-
-Distingue **markup** de **margem líquida** — a confusão que mais faz vendedor
-de peça 3D precificar errado. E trata as taxas por divisão:
-`preço = custo × (1 + markup) ÷ (1 − taxas)`.
-
-### Coleta de mercado — funcionando (`npm run check:market`)
-| Coletor | Estado |
+| Área | O que tem |
 |---|---|
-| Câmbio USD/EUR (AwesomeAPI) | ✅ funcionando |
-| IPCA/IGP-M (Banco Central) | ✅ funcionando |
-| Preço de filamento — 3D Fila | ✅ funcionando (PETG R$ 96,90/kg, 9 amostras) |
-| Preço de filamento — 3D Lab | ⚠️ bloqueado por Cloudflare (degrada sem quebrar) |
-| Mercado Livre | ⏸️ precisa de credencial grátis (opcional) |
+| **Acesso** | entrar · cadastrar · esqueci-senha · redefinir · definir (convite) · verificar e-mail · trocar senha |
+| **Painel** | resumo, pendências que atrapalham o cálculo, estoque baixo, peças recentes, preço de insumo, últimas movimentações |
+| **Materiais** | lista agrupada por categoria com busca e filtros · cadastro por categoria · detalhe com extrato auditável · baixa/reposição/correção de contagem · histórico de preço |
+| **Peças** | lista · formulário com **prévia de preço ao vivo** · detalhe com 3 faixas, custo detalhado, risco e produtividade · histórico de cálculo · "produzi esta peça" baixa o estoque |
+| **Fotos** | duas galerias (venda e fabricação) · arrastar-soltar e **Ctrl+V** · capa do anúncio |
+| **Mercado** | câmbio, inflação, preço por tipo e por loja · gráficos de 90 dias · coleta manual · diagnóstico de qual coletor falhou |
+| **Ajustes** | impressoras · energia · mão de obra · margem e taxas · quem tem acesso (convites e papéis) |
 
-Nenhuma tela chama API externa: a coleta grava no banco e o app só lê do cache.
-Testado com o Banco Central fora do ar — o app continuou servindo o valor antigo.
+### Decisões que valem lembrar
 
-### Seed com os dados reais do Felipe
-Impressora Kobra X · 4 rolos PETG Masterprint (preto, rosa, prata, dourado) ·
-outras 3 marcas · 12 cores Acrilex (9×37ml + 1×250ml) · 2 pastas · primer ·
-verniz · pincéis Condor · lixa · cola · embalagem. **28 materiais.**
+**O motor de preço roda nos dois lados.** É TypeScript puro, sem banco: no
+navegador ele dá a prévia que muda a cada tecla; no servidor, produz o valor
+gravado. `src/core/pricing/montar.ts` é a ponte — os dois lados montam a
+entrada com a mesma função, então a tela nunca mostra um preço e o banco
+guarda outro.
 
-Tudo que ele ainda não informou entrou como estimativa e está marcado
-`precoEstimado: true` — a tela mostra um selo roxo "estimado".
+**A peça recalcula com os preços de hoje.** Ao abrir uma peça salva, o cálculo
+é refeito e comparado com o snapshot do dia em que ela foi criada. É assim que
+aparece o aviso "o filamento subiu e seu anúncio ficou defasado".
 
-### Interface — começou
-- Design system (`globals.css`) com tokens de cor semânticos (lucro/prejuízo/atenção/estimado)
-- Componentes base (`src/components/ui/index.tsx`)
-- Campos de formulário + **medidor de força de senha** (`src/components/forms/campos.tsx`)
-- Server Actions da autenticação (`src/app/(auth)/actions.ts`)
+**Isolamento entre ateliês vem da sessão, não do formulário.** Todo `where` de
+consulta usa o `workspaceId` de `exigirContexto()`. O `proxy.ts` só faz
+redirect otimista olhando o cookie — quem decide é a página.
+
+**Tudo funciona sem JavaScript**, menos o formulário de peça (que precisa da
+prévia ao vivo) e o envio de fotos. Os testes de ponta a ponta usaram
+justamente esse caminho.
+
+### Dois defeitos encontrados e corrigidos
+
+1. **`z.coerce.number()` transformava `null` em `0`.** Em `refugoManualPct`,
+   isso o motor lia como "taxa de refugo fixada em 0%" e **desligava a reserva
+   de quebra inteira**. A peça de teste saía a R$ 244 em vez de R$ 272 — quase
+   R$ 28 sumindo por peça, em silêncio. Corrigido com `.nullish()` e travado
+   por teste (`src/app/(app)/projetos/esquema.test.ts`).
+2. **`actions.ts` exportava uma constante.** Arquivo `"use server"` só pode
+   exportar funções async; isso quebrava o build. Movido para `estado.ts`.
 
 ---
 
-## 🔨 O QUE FALTA — nesta ordem
+## 🔨 O que ainda dá para melhorar
 
-### 1. Telas de autenticação  ← **retomar exatamente aqui**
-Criar em `src/app/(auth)/`:
-- `entrar/page.tsx` — login + "esqueci minha senha" + reenviar verificação
-- `cadastrar/page.tsx` — auto-cadastro com medidor de força
-- `esqueci-senha/page.tsx`
-- `redefinir-senha/page.tsx` — recebe `?token=`
-- `definir-senha/page.tsx` — primeiro acesso por convite, recebe `?token=`
-- `verificar-email/page.tsx` — recebe `?token=`
-- `trocar-senha/page.tsx` — troca obrigatória do Felipe (`?obrigatorio=1`)
-- `layout.tsx` — layout centralizado das telas de acesso
+Nada disto bloqueia o uso — são refinamentos.
 
-As Server Actions **já existem** em `src/app/(auth)/actions.ts`. As telas só
-precisam usar `useActionState` com elas.
-
-### 2. `proxy.ts` na raiz de `src/`
-Redirect otimista lendo só o cookie (sem consultar o banco). Em Next 16 o
-arquivo se chama `proxy.ts` e a função exportada é `proxy` — **não** mais
-`middleware`. A checagem de verdade continua sendo `exigirSessao()` nas páginas.
-
-### 3. Layout do app logado + navegação
-`src/app/(app)/layout.tsx` com barra lateral, e bloqueio: quem tem
-`precisaTrocarSenha` só acessa `/trocar-senha`.
-
-### 4. Painel (dashboard)
-Cards de resumo · alertas de estoque baixo · variação de preço dos insumos ·
-últimas movimentações · projetos recentes.
-
-### 5. Materiais (CRUD + estoque)
-Lista com busca e filtro · formulário com campos por categoria · detalhe com
-extrato de movimentações · **baixa rápida em um clique** · destaque para
-estoque abaixo do mínimo.
-
-### 6. Projetos — o coração
-Wizard por etapas: dados da peça → origem do arquivo → impressão (filamento,
-gramas, tempo) → pós-processamento → complexidade/risco → comercial.
-Resultado: as 3 faixas de preço, o detalhamento do custo e os avisos.
-
-### 7. Fotos
-Upload pro Supabase Storage, arrastar-e-soltar + colar com Ctrl+V.
-Duas galerias por peça: **fabricação** e **venda**.
-(`src/server/storage/` ainda está vazio.)
-
-### 8. Tela de mercado
-Câmbio, inflação, preço do filamento por loja, gráfico de variação, botão de
-forçar coleta, diagnóstico de qual coletor falhou.
-
-### 9. Configurações
-Impressoras · tarifa de energia · mão de obra · margem e taxas · membros do
-ateliê (convidar o Felipe de verdade).
-
-### 10. Fechamento
-Testes do fluxo de token (geração, validação, expiração, reuso bloqueado) ·
-`/api/cron/mercado` protegida por `CRON_SECRET` · `vercel.json` com o cron
-diário · README com deploy.
+- **Ordenar fotos arrastando.** Hoje a ordem é a de envio, e a capa se escolhe
+  por botão.
+- **Alertas automáticos.** A tabela `Alert` existe e o painel já sabe mostrá-los,
+  mas ninguém os cria ainda. Candidatos naturais: preço de insumo subiu acima da
+  inflação, estoque cruzou o mínimo, peça com margem abaixo do mínimo.
+- **Duplicar peça.** Ele vai querer partir de uma parecida em vez de preencher
+  tudo de novo.
+- **Exportar.** Uma lista de preços em PDF ou planilha, para levar à feira.
+- **Coletor da 3D Lab.** Continua bloqueado por Cloudflare; degrada sem quebrar.
 
 ---
 
@@ -152,13 +108,15 @@ diário · README com deploy.
 
 | O quê | Onde | Por quê |
 |---|---|---|
-| **E-mail real do Felipe** | me passar | o seed usou `felipe@exemplo.com.br` como espaço reservado |
-| **Conta no Brevo** | brevo.com | 300 e-mails/dia grátis. Verificar um remetente e pegar a chave SMTP. Preencher no `.env` conforme o `.env.example` |
-| **Projeto no Supabase** | supabase.com | Postgres de produção + storage das fotos |
-| Preços reais dos materiais | dentro do app | hoje tudo está estimado |
-| Conta de luz (valor + kWh) | dentro do app | pro R$/kWh sair do valor real |
-| Confirmar specs da Kobra X | me passar | valor pago, volume de impressão, potência |
-| Credencial do Mercado Livre | developers.mercadolivre.com.br | opcional, liga o preço de venda praticado |
+| **E-mail real do Felipe** | me passar | o seed usou `felipe@exemplo.com.br` |
+| **Conta no Brevo** | brevo.com | 300 e-mails/dia grátis. Verificar um remetente e pegar a chave SMTP |
+| **Projeto no Supabase** | supabase.com | Postgres de produção + bucket **público** `fotos` |
+| Preços reais dos materiais | dentro do app | os 28 estão marcados como estimados |
+| Conta de luz (valor + kWh) | Ajustes → Energia | hoje o R$/kWh vem de estimativa |
+| Confirmar specs da Kobra X | Ajustes → Impressoras | valor pago, volume, potência |
+| Credencial do Mercado Livre | developers.mercadolivre.com.br | opcional |
+
+O passo a passo do deploy está no `precifica3d/README.md`.
 
 ---
 
@@ -166,35 +124,32 @@ diário · README com deploy.
 
 ```
 precifica3d/
-├── prisma/
-│   ├── schema.prisma          25 tabelas, multi-tenant
-│   └── seed.ts                dados reais do Felipe
-├── src/
-│   ├── core/                  domínio PURO — zero I/O, testável isolado
-│   │   ├── pricing/           motor de cálculo de preço
-│   │   └── validation/        política de senha, normalização de e-mail
-│   ├── server/                camada de I/O
-│   │   ├── auth/              hash, sessão, tokens, rate limit, auditoria
-│   │   ├── mail/              adaptadores console/SMTP/Resend + templates
-│   │   ├── market/            coletores + cache + leitura
-│   │   ├── db/                client do Prisma
-│   │   └── storage/           (vazio — fotos)
-│   ├── app/                   rotas Next.js
-│   ├── components/            UI
-│   └── config/env.ts          variáveis validadas com Zod
-└── scripts/                   verificações rodáveis
+├── prisma/schema.prisma       25 tabelas, multi-tenant
+├── vercel.json                cron diário às 12h UTC (9h de Brasília)
+└── src/
+    ├── core/                  domínio PURO — zero I/O, roda no cliente e no servidor
+    │   ├── pricing/           motor de preço · montagem da entrada · testes
+    │   ├── materiais/         categorias e custo unitário
+    │   └── validation/        política de senha · e-mail
+    ├── server/                camada de I/O
+    │   ├── auth/ mail/ market/ storage/ queries/ workspace/ db/
+    ├── app/
+    │   ├── (auth)/            telas de acesso
+    │   ├── (app)/             app logado
+    │   └── api/cron/mercado/  rotina diária, protegida por CRON_SECRET
+    ├── components/            interface compartilhada
+    └── proxy.ts               redirect otimista (Next 16; era middleware.ts)
 ```
 
 ## 🧪 Comandos
 
 ```bash
-npm run dev              # servidor (localhost:3000)
-npm run db:dev           # banco local — terminal separado
-npm run db:seed          # recria os dados
+npm run dev              # servidor
+npm test                 # 70 testes (os de banco se pulam se ele estiver fora)
+npm run typecheck        # tipos
 npm run db:studio        # navegador visual do banco
-npm run check:pricing    # testa o motor de preço
-npm run check:market     # roda os coletores de verdade
-npm run typecheck        # confere os tipos
+npm run check:pricing    # motor de preço com um caso realista
+npm run check:market     # coletores de verdade, contra a internet
 ```
 
 ## 🔒 Segurança — não quebrar
@@ -202,4 +157,6 @@ npm run typecheck        # confere os tipos
 - `.env` está no `.gitignore` e **nunca** foi commitado. Confirmado.
 - `AUTH_SECRET` novo por ambiente. Trocar invalida sessões e links pendentes.
 - `SUPABASE_SERVICE_ROLE_KEY` só no servidor — nunca com prefixo `NEXT_PUBLIC_`.
+- `CRON_SECRET` obrigatório: **sem ele a rota de cron responde 404 para todos**,
+  nunca aberta.
 - Em produção use a URL do **pooler** do Supabase (porta 6543), não a direta.

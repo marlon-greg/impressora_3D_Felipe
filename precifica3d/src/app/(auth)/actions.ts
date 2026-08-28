@@ -7,6 +7,7 @@ import * as auth from "@/server/auth/service";
 import { encerrarSessao, sessaoAtual } from "@/server/auth/session";
 import { registrar, ACOES } from "@/server/auth/audit";
 import { avaliarSenha } from "@/core/validation/password";
+import type { EstadoForm } from "./estado";
 
 /**
  * Server Actions da autenticação.
@@ -15,16 +16,6 @@ import { avaliarSenha } from "@/core/validation/password";
  * navegador existe só para dar resposta rápida — ela pode ser burlada
  * abrindo o DevTools, então nunca é a que decide.
  */
-
-export interface EstadoForm {
-  ok: boolean;
-  mensagem: string;
-  campos?: Record<string, string>;
-  /** em modo console, o link que sairia por e-mail aparece na tela */
-  linkDev?: string;
-}
-
-const VAZIO: EstadoForm = { ok: false, mensagem: "" };
 
 const texto = (max = 200) => z.string().trim().max(max);
 
@@ -75,6 +66,18 @@ const esquemaLogin = z.object({
   lembrar: z.union([z.literal("on"), z.literal("")]).optional(),
 });
 
+/**
+ * Para onde mandar depois do login. O destino vem da URL, então é entrada de
+ * quem clicou no link: só aceitamos caminho interno. "//evil.com" e
+ * "https://evil.com" são endereços de outro site — deixá-los passar seria um
+ * redirecionamento aberto, usado para phishing com o domínio certo na barra.
+ */
+function destinoSeguro(bruto: unknown): string | null {
+  const v = typeof bruto === "string" ? bruto.trim() : "";
+  if (!v.startsWith("/") || v.startsWith("//") || v.startsWith("/\\")) return null;
+  return v;
+}
+
 export async function acaoEntrar(
   _anterior: EstadoForm,
   dados: FormData,
@@ -90,8 +93,11 @@ export async function acaoEntrar(
 
   if (!r.ok) return paraEstado(r);
 
+  // troca obrigatória vem antes de qualquer destino guardado
+  if (r.dados?.precisaTrocarSenha) redirect("/trocar-senha?obrigatorio=1");
+
   // redirect() lança por dentro — precisa ficar FORA de qualquer try/catch
-  redirect(r.dados?.precisaTrocarSenha ? "/trocar-senha?obrigatorio=1" : "/painel");
+  redirect(destinoSeguro(dados.get("proximo")) ?? "/painel");
 }
 
 export async function acaoSair(): Promise<void> {
@@ -99,6 +105,27 @@ export async function acaoSair(): Promise<void> {
   if (s) await registrar(ACOES.LOGOUT, { userId: s.id });
   await encerrarSessao();
   redirect("/entrar");
+}
+
+// ── Verificar e-mail ───────────────────────────────────────────
+
+/**
+ * Fica atrás de um botão de propósito. Antivírus de e-mail corporativo abre
+ * todos os links da mensagem para escanear — se a verificação acontecesse no
+ * GET, o token seria queimado antes de a pessoa clicar.
+ */
+export async function acaoVerificarEmail(
+  _anterior: EstadoForm,
+  dados: FormData,
+): Promise<EstadoForm> {
+  const token = String(dados.get("token") ?? "").trim();
+  if (!token) return { ok: false, mensagem: "Link inválido ou incompleto." };
+
+  const r = await auth.verificarEmail(token);
+  if (!r.ok) return paraEstado(r);
+
+  // verificarEmail já abre a sessão — a pessoa entra direto
+  redirect("/painel?email-confirmado=1");
 }
 
 // ── Reenviar verificação ───────────────────────────────────────
@@ -198,5 +225,3 @@ export async function acaoTrocarSenha(
 export async function acaoAvaliarSenha(senha: string, contexto: string[] = []) {
   return avaliarSenha(senha, contexto);
 }
-
-export { VAZIO };

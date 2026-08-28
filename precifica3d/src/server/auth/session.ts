@@ -7,7 +7,9 @@ import { ehProducao } from "@/config/env";
 import { gerarToken, hashToken, VALIDADE } from "./tokens";
 import type { Papel } from "@/generated/prisma/enums";
 
-export const COOKIE_SESSAO = "p3d_sessao";
+import { COOKIE_SESSAO } from "./cookie";
+
+export { COOKIE_SESSAO };
 
 /**
  * Sessão em cookie httpOnly + registro no banco.

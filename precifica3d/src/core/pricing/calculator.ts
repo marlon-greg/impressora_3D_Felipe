@@ -166,6 +166,14 @@ const TETO_MARGEM_MAIS_TAXAS = 85;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Dinheiro em português: vírgula decimal e ponto de milhar.
+ * Estes textos vão direto para a tela, e "R$ 0.95" num app brasileiro lê como
+ * erro — ou pior, como noventa e cinco.
+ */
+const moeda = (n: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+
 /** Custo unitário de um material a partir da embalagem. */
 export function custoPorUnidade(precoEmbalagem: number, tamanhoEmbalagem: number): number {
   if (!tamanhoEmbalagem || tamanhoEmbalagem <= 0) return 0;
@@ -290,7 +298,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
       chave: "energia",
       rotulo: "Energia elétrica",
       valor: r2(custoEnergia),
-      detalhe: `${r2(kwh)} kWh × R$ ${r2(e.tarifaKwh)}/kWh (tarifa real da conta)`,
+      detalhe: `${r2(kwh)} kWh × ${moeda(e.tarifaKwh)}/kWh (tarifa real da conta)`,
       perdeNaFalhaImpressao: true,
     });
   }
@@ -304,7 +312,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
       chave: "depreciacao",
       rotulo: "Depreciação da impressora",
       valor: r2(custoDepreciacao),
-      detalhe: `R$ ${r2(porHora)}/h × ${e.horasImpressao} h — a máquina se paga em ${e.impressora.vidaUtilHoras} h`,
+      detalhe: `${moeda(porHora)}/h × ${e.horasImpressao} h — a máquina se paga em ${e.impressora.vidaUtilHoras} h`,
       perdeNaFalhaImpressao: true,
     });
   }
@@ -318,7 +326,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
       chave: "manutencao",
       rotulo: "Manutenção e peças de reposição",
       valor: r2(custoManutencao),
-      detalhe: `R$ ${r2(porHora)}/h (bico, correia, mesa, PTFE)`,
+      detalhe: `${moeda(porHora)}/h (bico, correia, mesa, PTFE)`,
       perdeNaFalhaImpressao: true,
     });
   }
@@ -332,7 +340,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
         ? m.precoEmbalagem / m.rendimentoPecas
         : m.quantidade * custoPorUnidade(m.precoEmbalagem, m.tamanhoEmbalagem);
     custoAcabamento += custo;
-    detalhesAcabamento.push(`${m.nome} (R$ ${r2(custo)})`);
+    detalhesAcabamento.push(`${m.nome} (${moeda(custo)})`);
     if (m.precoEstimado) {
       avisos.push({
         nivel: "atencao",
@@ -393,7 +401,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
         chave: "indireto",
         rotulo: "Custo indireto rateado",
         valor: r2(custoIndireto),
-        detalhe: `R$ ${r2(porHora)}/h de trabalho (internet, software, espaço)`,
+        detalhe: `${moeda(porHora)}/h de trabalho (internet, software, espaço)`,
       });
     }
   }
@@ -525,7 +533,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
   if (risco.nivel === "ALTO" || risco.nivel === "MUITO_ALTO") {
     avisos.push({
       nivel: "atencao",
-      texto: `Risco ${risco.nivel === "ALTO" ? "alto" : "muito alto"} (score ${risco.score}). Já reservei R$ ${r2(reservaRefugo)} pra cobrir refugo — sem isso, uma falha come o lucro de várias peças.`,
+      texto: `Risco ${risco.nivel === "ALTO" ? "alto" : "muito alto"} (score ${risco.score}). Já reservei ${moeda(reservaRefugo)} pra cobrir refugo — sem isso, uma falha come o lucro de várias peças.`,
     });
   }
   if (!e.impressora) {
@@ -549,7 +557,7 @@ export function precificar(e: EntradaPrecificacao): ResultadoPrecificacao {
   if (ganhoPorHoraMaquina > 0 && ganhoPorHoraMaquina < 2) {
     avisos.push({
       nivel: "atencao",
-      texto: `No preço ideal, a impressora rende R$ ${ganhoPorHoraMaquina}/h. É pouco: ocupar a máquina ${e.horasImpressao} h por isso pode não valer a pena.`,
+      texto: `No preço ideal, a impressora rende ${moeda(ganhoPorHoraMaquina)}/h. É pouco: ocupar a máquina ${e.horasImpressao} h por isso pode não valer a pena.`,
     });
   }
 
