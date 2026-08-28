@@ -88,6 +88,41 @@ justamente esse caminho.
 
 ---
 
+## 🚀 Produção — o que já está montado
+
+**Supabase** (projeto `precifica3d`, São Paulo · sa-east-1)
+- 27 tabelas criadas e a migration registrada em `_prisma_migrations`
+- RLS ligado em todas as tabelas: sem isso o Supabase publicaria o banco
+  inteiro numa API REST acessível com a chave publishable, que é pública
+- Bucket `fotos` público, com upload e exclusão testados pelo código real
+- Dados do seed aplicados: 28 materiais, Kobra X, 5 valores-hora, tarifa
+
+**Brevo** (e-mail) — remetente verificado, chave SMTP sem expiração,
+envio real testado e recebido na caixa de entrada.
+
+Os arquivos `precifica3d/criar-esquema-supabase.sql` e
+`ativar-rls-supabase.sql` são o que foi executado no SQL Editor, guardados
+como registro de como o banco de produção nasceu.
+
+### ⚠️ A rede fixa daqui bloqueia Postgres e o corpo de e-mails SMTP
+
+Sintoma: a conexão TCP abre, o TLS estabelece, e aí morre por timeout — no
+Postgres logo após o pedido de login, no SMTP logo após o `DATA`. Pacotes
+pequenos passam, grandes somem. Pelo 5G do celular **tudo funciona**, e foi
+assim que o seed e o teste de e-mail rodaram.
+
+Isso não afeta a Vercel, que conecta de dentro da AWS. Mas se um dia você
+precisar rodar migration ou seed daqui de novo, use o 5G.
+
+### Falta para o deploy
+
+As 14 variáveis de ambiente estão prontas em `precifica3d/.env.producao`
+(fora do Git). Só a `APP_URL` fica vazia até o primeiro deploy revelar a URL.
+
+Cuidado ao preencher: na Vercel a variável se chama `DATABASE_URL`, mas o
+valor é o da linha `DATABASE_URL_APP` — porta **6543**, o pooler de
+transação. A de 5432 serve para migration e seed, e não vai para lá.
+
 ## 🔨 O que ainda dá para melhorar
 
 Nada disto bloqueia o uso — são refinamentos.
