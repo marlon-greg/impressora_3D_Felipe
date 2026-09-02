@@ -137,3 +137,17 @@ export const IconeMenu = (p: Props) => (
     <path d="M4 7h16M4 12h16M4 17h16" />
   </svg>
 );
+
+export const IconeAjuda = (p: Props) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9.2a2.6 2.6 0 1 1 3.3 2.5c-.5.2-.8.7-.8 1.2v.6" />
+    <path d="M12 16.8h.01" />
+  </svg>
+);
+
+export const IconeCheck = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M4.5 12.5 9.5 17.5 19.5 6.5" />
+  </svg>
+);

@@ -11,6 +11,7 @@ import {
   IconeMateriais,
   IconeMercado,
   IconeConfig,
+  IconeAjuda,
 } from "@/components/ui/icones";
 
 /**
@@ -33,6 +34,7 @@ export const ITENS: Item[] = [
   { href: "/materiais", rotulo: "Materiais", icone: IconeMateriais },
   { href: "/mercado", rotulo: "Mercado", icone: IconeMercado },
   { href: "/configuracoes", rotulo: "Ajustes", icone: IconeConfig },
+  { href: "/ajuda", rotulo: "Manual", icone: IconeAjuda },
 ];
 
 /** `/projetos/abc` também acende "Projetos". */
