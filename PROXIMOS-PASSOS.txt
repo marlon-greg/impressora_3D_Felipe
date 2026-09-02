@@ -1,0 +1,165 @@
+================================================================================
+  PRECIFICA3D - PONTOS PARA DECIDIR
+  Escrito em 28/08/2026, depois que o sistema subiu na Vercel.
+  Nada aqui foi implementado ainda. Sao 4 assuntos que voce levantou e a
+  minha analise de cada um, com as perguntas que preciso que voce responda.
+================================================================================
+
+  Site no ar:  https://impressora-3-d-felipe.vercel.app
+  Login:       marlonfanger@gmail.com  (senha do seed - TROQUE no primeiro acesso)
+
+
+================================================================================
+1. VER "AS AREAS" COMO ADMIN
+================================================================================
+
+O QUE EU ENCONTREI
+
+Existe UM UNICO atelie - o "Atelie do Felipe". Voce e DONO e superAdmin dele;
+o Felipe e OPERADOR do MESMO atelie.
+
+Entao quando voce loga, nao esta "indo para a tela do Felipe". Voces dois estao
+olhando a mesma oficina. A diferenca entre voces nao e o que veem, e o que
+PODEM FAZER: voce acessa Ajustes e convida gente, ele cria pecas e mexe no
+estoque mas nao configura.
+
+MINHA OPINIAO
+
+Isso esta certo para voces dois. Separar em espacos distintos significaria
+duplicar os 28 materiais, a Kobra X, a conta de luz - e ai o custo de uma peca
+dependeria de quem a cadastrou. Nao faz sentido para duas pessoas tocando um
+atelie junto.
+
+MAS tem uma coisa real por tras do seu pedido, e ela aparece quando voce abrir
+para os amigos: ai sim existirao varios atelies, e voce vai querer um lugar
+para ver quantos sao, quem sao, quem esta usando. O campo superAdmin ja existe
+no banco e voce ja tem ele marcado - so nao ha nenhuma tela que o use.
+
+O QUE EU FARIA
+
+Uma area de super-admin, so sua, listando os atelies, donos, quantidade de
+pecas e ultimo acesso. MAS SEM MOSTRAR CUSTOS E PRECOS DOS OUTROS. Isso e o
+negocio deles.
+
+Se um amigo pedir socorro, ai sim entra um acesso temporario com consentimento
+- nao um "eu vejo tudo de todo mundo" por padrao. Se a primeira coisa que voce
+fizer com os dados dos amigos for bisbilhotar, o produto comeca torto.
+
+>>> PERGUNTA: isso faz sentido, ou o que voce queria era outra coisa?
+
+
+================================================================================
+2. MANUAL DO SISTEMA
+================================================================================
+
+Concordo inteiramente, e acho que e a coisa mais importante da sua lista.
+Um sistema que so voce entende e um sistema que so voce usa.
+
+O QUE EU FARIA
+
+Uma secao /ajuda dentro do app, com uma pagina por area, e um link
+"como funciona" no topo de cada tela apontando para o trecho certo.
+NAO um PDF.
+
+O motivo e pratico: PDF envelhece e some. A duvida aparece na tela de
+precificacao, e a resposta tem que estar a um clique dali - nao numa pasta do
+Drive que ninguem lembra.
+
+Boa parte do texto ja existe espalhado pelo app, nas dicas dos campos. O
+trabalho e organizar isso num lugar e escrever o que falta:
+  - o que e markup contra margem liquida
+  - por que a reserva de refugo existe
+  - por que a mao de obra costuma ser o maior custo
+  - o que fazer primeiro quando voce abre o sistema pela primeira vez
+
+Isso deixa de ser opcional no dia que voce abrir para os amigos.
+
+>>> PERGUNTA: nenhuma. Se voce concordar, eu faco.
+
+
+================================================================================
+3. FONTE DO ARQUIVO COMO LINK
+================================================================================
+
+Concordo, e e barato. O campo ja existe no banco.
+
+UMA RESSALVA: nao vou obrigar a ser URL. "Modelei do zero" e "arquivo do
+cliente" sao respostas validas. O certo e aceitar texto livre e transformar em
+link clicavel quando o que voce digitou for um endereco. Voce ganha o link sem
+perder a liberdade de escrever.
+
+>>> PERGUNTA: nenhuma. Se voce concordar, eu faco.
+
+
+================================================================================
+4. "ONDE VOCE VENDE" COMO TAGS COM LINKS
+================================================================================
+
+Aqui voce pegou um defeito meu. Esse campo esta gravando no "descricao" do
+projeto, que era pra ser a descricao da peca. Ficou torto e e meu erro.
+
+Concordo com a ideia, mas discordo de um detalhe e quero te propor algo maior.
+
+O DETALHE ONDE DISCORDO
+
+Salvar a tag ENQUANTO voce digita vai criar lixo - "M", "Me", "Mer", "Merc".
+O certo e voce digitar e apertar Enter, e o campo sugerir os canais que voce ja
+usou antes. Reaproveitamento sem entulho.
+
+O ALGO MAIOR
+
+Canal de venda nao e so um rotulo, E UMA TAXA DIFERENTE.
+
+Mercado Livre fica com ~14%. Encomenda direta fica com 0%. Hoje o sistema tem
+uma unica taxa por peca - o que significa que o "preco ideal" que ele calcula
+so vale para um canal.
+
+Se o canal virar uma entidade de verdade, com nome, taxa e link, o app passa a
+responder algo que ele hoje nao responde:
+
+    Suporte de fone - R$ 272 no Mercado Livre, R$ 235 na encomenda direta.
+
+Isso e diferente de uma tag decorativa. E a resposta para "por que a mesma peca
+tem precos diferentes dependendo de onde eu vendo", que e uma duvida real de
+quem vende em mais de um lugar.
+
+O QUE EU FARIA
+
+Os canais viram um cadastro em Ajustes (nome + taxa padrao), e na peca voce
+marca em quais canais ela esta anunciada, com o link de cada anuncio.
+
+Apagar um canal usado em pecas antigas vira arquivar, igual aos materiais -
+senao o custo daquelas pecas fica sem explicacao.
+
+>>> PERGUNTA: topa esse caminho, ou prefere a versao simples (so tag + link,
+    sem taxa por canal)?
+
+    A simples e bem mais rapida.
+    A completa muda o que o produto sabe responder.
+
+
+================================================================================
+O QUE VOCE IA MEDIR / TRAZER
+================================================================================
+
+  [ ] Precos reais dos 28 materiais (hoje todos marcados como ESTIMADO)
+  [ ] Conta de luz: valor total + consumo em kWh
+  [ ] Specs da Kobra X: valor pago, volume de impressao, potencia em watts
+  [ ] E-mail real do Felipe (o seed usou felipe@exemplo.com.br)
+
+Quando voltar com isso, a gente faz tudo de uma vez.
+
+
+================================================================================
+LEMBRETES DE SEGURANCA
+================================================================================
+
+  - TROQUE sua senha no primeiro acesso. A do seed passou pelo terminal e pela
+    conversa, entao nao e mais segredo.
+  - A senha do Felipe ja nasce provisoria: o sistema obriga ele a trocar.
+  - Quando abrir para os amigos, crie um Gmail so para o sistema. Hoje o
+    remetente e o seu pessoal, e todo mundo que se cadastrar vai ve-lo.
+  - Ai tambem vale comprar um dominio: sem ele, e-mail de confirmacao cai em
+    spam com frequencia e a pessoa nao consegue nem entrar.
+
+================================================================================
